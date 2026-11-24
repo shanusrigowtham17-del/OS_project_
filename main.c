@@ -2,73 +2,51 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <string.h>
-
-char get_state(int pid) {
-    char path[64], line[256];
-    char *p;
-    FILE *fp;
-
-    sprintf(path, "/proc/%d/stat", pid);
-    fp = fopen(path, "r");
-    if (fp == NULL)
-        return '-';
-
-    fgets(line, sizeof(line), fp);
-    fclose(fp);
-
-    p = strrchr(line, ')');
-    return p[2];
-}
 
 int main() {
-    int pids[5];
-    int i, status, zombies = 0;
-    int pid;
+    int p,a[5],i,s,id,count=0;
+    char path[50],name[100],state;
+    FILE *f;
+    setbuf(stdout, NULL);
+    printf("ZOMBIE PROCESSES\n");
 
-    printf("ZOMBIE PROCESS DEMO\n");
-    printf("-------------------\n");
-    fflush(stdout);
-
-    for (i = 0; i < 5; i++) {
-        pid = fork();
-
-        if (pid < 0) {
-            printf("Fork failed\n");
-            exit(1);
+    for(i=0;i<5;i++){
+        p =fork();
+        if(p==0){
+            printf("child process %d: PID = %d\n",i+1,getpid());
+            exit(0);
         }
-        if (pid == 0) {
-            printf("Child %d created, PID: %d\n", i + 1, getpid());
-            exit(i + 1);
+        else if(p>0){
+            a[i]=p;
         }
-        pids[i] = pid;
+        else{
+            printf("fork process failed\n");
+            return 1;
+        }
     }
-
     sleep(2);
+    printf("checking for zombie proceses\n");
 
-    printf("\nBefore cleanup:\n");
-    printf("PID\tSTATE\n");
-    for (i = 0; i < 5; i++) {
-        char s = get_state(pids[i]);
-        printf("%d\t%c\n", pids[i], s);
-        if (s == 'Z')
-            zombies++;
-    }
-    printf("Total zombies: %d\n", zombies);
-
-    printf("\nCleaning zombies...\n");
-    for (i = 0; i < 5; i++) {
-        waitpid(pids[i], &status, 0);
-        printf("PID %d cleaned, exit code %d\n", pids[i], WEXITSTATUS(status));
-    }
-
-    printf("\nAfter cleanup:\n");
-    for (i = 0; i < 5; i++) {
-        if (get_state(pids[i]) == '-')
-            printf("PID %d removed\n", pids[i]);
-        else
-            printf("PID %d still exists\n", pids[i]);
+    for(i=0;i<5;i++){
+        sprintf(path,"/proc/%d/stat",a[i]);
+        f=fopen(path,"r");
+        if(f!=NULL){
+            if(fscanf(f,"%d %99s %c",&id,name,&state)==3){
+                if(state=='Z'){
+                    printf("zombie proceses found: PID %d\n",a[i]);
+                    count++;
+                }
+            }
+            fclose(f);
+        }
     }
 
+    printf("total zombie processes found are: %d\n",count);
+    printf("cleaning all of them\n");
+
+    for(i=0;i<5;i++){
+        waitpid(a[i],&s,0);
+    }
+    printf("cleaning process has been completed!");
     return 0;
-}
+}   
